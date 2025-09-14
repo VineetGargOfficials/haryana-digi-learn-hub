@@ -43,7 +43,16 @@ interface FormErrors {
   [key: string]: string;
 }
 
+interface Section {
+  id: number;
+  title: string;
+  description: string;
+  fields: string[];
+}
+
 const CollegeProgramForm: React.FC = () => {
+  const [currentSection, setCurrentSection] = useState<number>(0);
+  const [completedSections, setCompletedSections] = useState<Set<number>>(new Set());
   const [formData, setFormData] = useState<FormData>({
     college: '',
     totalPrograms: '',
@@ -65,6 +74,52 @@ const CollegeProgramForm: React.FC = () => {
 
   const [submitted, setSubmitted] = useState<boolean>(false);
   const [errors, setErrors] = useState<FormErrors>({});
+
+  // Define sections
+  const sections: Section[] = [
+    {
+      id: 0,
+      title: "Institution Selection",
+      description: "Select your institution and view program overview",
+      fields: ['college', 'totalPrograms']
+    },
+    {
+      id: 1,
+      title: "UGC CCFUGP Information", 
+      description: "Provide details about UGC CCFUGP alignment",
+      fields: ['ugcFollowed', 'ugProgramsNumber', 'ugProgramsPercentage']
+    },
+    {
+      id: 2,
+      title: "Regulating Councils",
+      description: "Information about regulating council alignments", 
+      fields: ['regulatingCouncilsNumber', 'regulatingCouncilsNames', 'regulatingCouncilsPercentage']
+    },
+    {
+      id: 3,
+      title: "Non-Aligned Programs",
+      description: "Programs not aligned to CCFUGP or councils",
+      fields: ['ccfugpProgramsNumber', 'ccfugpProgramsPercentage']
+    },
+    {
+      id: 4,
+      title: "Bachelor Degree Programs", 
+      description: "3-year bachelor degree program details",
+      fields: ['bachelorDegreeNumber', 'bachelorDegreeList', 'bachelorDegreePercentage']
+    },
+    {
+      id: 5,
+      title: "B.VOC Programs",
+      description: "Bachelor of Vocation program information", 
+      fields: ['bVocNumber', 'bVocList', 'bVocPercentage']
+    },
+    {
+      id: 6,
+      title: "Review & Submit",
+      description: "Review all information before submission",
+      fields: []
+    }
+  ];
 
   // College data from CSV
   const collegeData: CollegeData = {
@@ -126,50 +181,48 @@ const CollegeProgramForm: React.FC = () => {
     }
   };
 
-  const validateForm = (): boolean => {
+  const validateSection = (sectionId: number): boolean => {
     const newErrors: FormErrors = {};
 
-    if (!formData.college) {
-      newErrors.college = 'Please select an institution';
-    }
-
-    if (!formData.ugcFollowed) {
-      newErrors.ugcFollowed = 'Please select if UGC CCFUGP is followed';
+    // Validation for each section
+    switch (sectionId) {
+      case 0: // Institution Selection
+        if (!formData.college) {
+          newErrors.college = 'Please select an institution';
+        }
+        break;
+      case 1: // UGC CCFUGP
+        if (!formData.ugcFollowed) {
+          newErrors.ugcFollowed = 'Please select if UGC CCFUGP is followed';
+        }
+        break;
+      // Add more validations as needed
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: FormEvent<HTMLFormElement>): void => {
-    e.preventDefault();
-    
-    if (validateForm()) {
-      console.log('Form submitted:', formData);
-      setSubmitted(true);
-      
-      // Reset form after 3 seconds
-      setTimeout(() => {
-        setSubmitted(false);
-        setFormData({
-          college: '',
-          totalPrograms: '',
-          ugcFollowed: '',
-          ugProgramsNumber: '',
-          ugProgramsPercentage: '',
-          regulatingCouncilsNumber: '',
-          regulatingCouncilsNames: '',
-          regulatingCouncilsPercentage: '',
-          ccfugpProgramsNumber: '',
-          ccfugpProgramsPercentage: '',
-          bachelorDegreeNumber: '',
-          bachelorDegreeList: '',
-          bachelorDegreePercentage: '',
-          bVocNumber: '',
-          bVocList: '',
-          bVocPercentage: ''
-        });
-      }, 3000);
+  const handleNext = (): void => {
+    if (validateSection(currentSection)) {
+      setCompletedSections(prev => new Set([...prev, currentSection]));
+      if (currentSection < sections.length - 1) {
+        setCurrentSection(prev => prev + 1);
+      }
+    }
+  };
+
+  const handlePrevious = (): void => {
+    if (currentSection > 0) {
+      setCurrentSection(prev => prev - 1);
+    }
+  };
+
+  const handleSectionClick = (sectionId: number): void => {
+    // Allow navigation to completed sections or the next incomplete section
+    const maxAllowedSection = Math.max(...Array.from(completedSections), -1) + 1;
+    if (sectionId <= maxAllowedSection) {
+      setCurrentSection(sectionId);
     }
   };
 
@@ -194,6 +247,19 @@ const CollegeProgramForm: React.FC = () => {
     });
     setErrors({});
     setSubmitted(false);
+    setCurrentSection(0);
+    setCompletedSections(new Set());
+  };
+
+  const handleSubmit = (e: FormEvent<HTMLFormElement>): void => {
+    e.preventDefault();
+    console.log('Form submitted:', formData);
+    setSubmitted(true);
+    
+    // Reset form after 5 seconds
+    setTimeout(() => {
+      resetForm();
+    }, 5000);
   };
 
   // Auto-populate fields when college is selected
@@ -203,6 +269,7 @@ const CollegeProgramForm: React.FC = () => {
       setFormData(prev => ({
         ...prev,
         totalPrograms: data.programs,
+        ugcFollowed: data.ugcFollowed,
         ugProgramsNumber: data.ugProgramsNumber,
         ugProgramsPercentage: data.ugProgramsPercentage,
         regulatingCouncilsNumber: data.regulatingCouncilsNumber,
@@ -215,135 +282,146 @@ const CollegeProgramForm: React.FC = () => {
     }
   }, [formData.college]);
 
+  const renderSection = (): JSX.Element => {
+    const section = sections[currentSection];
+
+    switch (currentSection) {
+      case 0: // Institution Selection
+        return (
+          <div className="form-section">
+            <h2 className="section-title">{section.title}</h2>
+            <p className="section-description">{section.description}</p>
+            
+            <div className="form-grid">
+              <div className="form-group form-group-full">
+                <label className="label">
+                  Select Institution <span className="required">*</span>
+                </label>
+                <select
+                  className="select"
+                  value={formData.college}
+                  onChange={(e: ChangeEvent<HTMLSelectElement>) => updateFormData('college', e.target.value)}
+                  required
+                >
+                  <option value="">-- Select Institution --</option>
+                  <option value="JCBUST">JCBUST</option>
+                  <option value="GJU">GJU</option>
+                  <option value="Manav Rachna">Manav Rachna</option>
+                  <option value="DCRUST">DCRUST</option>
+                </select>
+                {errors.college && <span className="validation-message">{errors.college}</span>}
+              </div>
+
+              {formData.college && (
+                <div className="card">
+                  <h3 className="card-title">{formData.totalPrograms || '0'}</h3>
+                  <p className="card-subtitle">Total Number of Programs</p>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+
+// UGC CCFUGP Information
+case 1:
   return (
-    <div className="container">
-      <div className="header">
-        <h1 className="header-title">🏛️ UGC College Program Registration System</h1>
-        <p className="header-subtitle">University Grants Commission - Government of India</p>
-      </div>
+    <div className="form-section">
+      <h2 className="section-title">{section.title}</h2>
+      <p className="section-description">{section.description}</p>
 
-      <div className="form-container">
-        <h2 className="form-title">Institution Program Registration Form</h2>
+      <div className="form-grid">
+        <div className="form-group form-group-full">
+          <label className="label">
+            Is UGC CCFUGP followed? <span className="required">*</span>
+          </label>
+          <div className="radio-group">
+            <div
+              className={`radio-option ${formData.ugcFollowed === 'Yes' ? 'selected' : ''}`}
+              onClick={() => updateFormData('ugcFollowed', 'Yes')}
+            >
+              <input
+                type="radio"
+                name="ugc_followed"
+                value="Yes"
+                checked={formData.ugcFollowed === 'Yes'}
+                onChange={() => updateFormData('ugcFollowed', 'Yes')}
+              />
+              <label>Yes</label>
+            </div>
+            <div
+              className={`radio-option ${formData.ugcFollowed === 'No' ? 'selected' : ''}`}
+              onClick={() => updateFormData('ugcFollowed', 'No')}
+            >
+              <input
+                type="radio"
+                name="ugc_followed"
+                value="No"
+                checked={formData.ugcFollowed === 'No'}
+                onChange={() => updateFormData('ugcFollowed', 'No')}
+              />
+              <label>No</label>
+            </div>
+          </div>
+          {errors.ugcFollowed && <span className="validation-message">{errors.ugcFollowed}</span>}
+        </div>
 
-        {submitted && (
-          <div className="success-message">
-            ✅ Form submitted successfully! Thank you for your submission.
+        <div className="form-group">
+          <label className="label">Number of UG programmes aligned to UGC CCFUGP</label>
+          <input
+            type="number"
+            className="input"
+            value={formData.ugProgramsNumber}
+            onChange={(e) => updateFormData('ugProgramsNumber', e.target.value)}
+            min="0"
+          />
+        </div>
+
+        {Number(formData.ugProgramsNumber) > 0 && (
+          <div className="form-group">
+            <label className="label">Percentage of UG programmes aligned to UGC CCFUGP</label>
+            <input
+              type="number"
+              className="input"
+              value={formData.ugProgramsPercentage}
+              onChange={(e) => updateFormData('ugProgramsPercentage', e.target.value)}
+              min="0"
+              max="100"
+              step="0.01"
+            />
           </div>
         )}
+      </div>
+    </div>
+  );
 
-        <form onSubmit={handleSubmit}>
-          <div className="form-grid">
-            {/* Institution Selection */}
-            <div className="form-group form-group-full">
-              <label className="label">
-                Select Institution <span className="required">*</span>
-              </label>
-              <select
-                className="select"
-                value={formData.college}
-                onChange={(e: ChangeEvent<HTMLSelectElement>) => updateFormData('college', e.target.value)}
-                required
-              >
-                <option value="">-- Select Institution --</option>
-                <option value="JCBUST">JCBUST</option>
-                <option value="GJU">GJU</option>
-                <option value="Manav Rachna">Manav Rachna</option>
-                <option value="DCRUST">DCRUST</option>
-              </select>
-              {errors.college && <span className="validation-message">{errors.college}</span>}
-            </div>
+// Regulating Councils
+case 2:
+  return (
+    <div className="form-section">
+      <h2 className="section-title">{section.title}</h2>
+      <p className="section-description">{section.description}</p>
 
-            {/* Total Programs Card */}
-            {formData.college && (
-              <div className="card">
-                <h3 className="card-title">{formData.totalPrograms || '0'}</h3>
-                <p className="card-subtitle">Total Number of Programs</p>
-              </div>
-            )}
+      <div className="form-grid">
+        <div className="form-group">
+          <label className="label">Number of UG programmes aligned to Regulating Councils</label>
+          <input
+            type="number"
+            className="input"
+            value={formData.regulatingCouncilsNumber}
+            onChange={(e) => updateFormData('regulatingCouncilsNumber', e.target.value)}
+            min="0"
+          />
+        </div>
 
-            {/* UGC CCFUGP Section */}
-            <h3 className="section-title">UGC CCFUGP Information</h3>
-            
-            <div className="form-group form-group-full">
-              <label className="label">
-                Is UGC CCFUGP followed? <span className="required">*</span>
-              </label>
-              <div className="radio-group">
-                <div
-                  className={`radio-option ${formData.ugcFollowed === 'Yes' ? 'selected' : ''}`}
-                  onClick={() => updateFormData('ugcFollowed', 'Yes')}
-                >
-                  <input
-                    type="radio"
-                    name="ugc_followed"
-                    value="Yes"
-                    checked={formData.ugcFollowed === 'Yes'}
-                    onChange={() => updateFormData('ugcFollowed', 'Yes')}
-                  />
-                  <label>Yes</label>
-                </div>
-                <div
-                  className={`radio-option ${formData.ugcFollowed === 'No' ? 'selected' : ''}`}
-                  onClick={() => updateFormData('ugcFollowed', 'No')}
-                >
-                  <input
-                    type="radio"
-                    name="ugc_followed"
-                    value="No"
-                    checked={formData.ugcFollowed === 'No'}
-                    onChange={() => updateFormData('ugcFollowed', 'No')}
-                  />
-                  <label>No</label>
-                </div>
-              </div>
-              {errors.ugcFollowed && <span className="validation-message">{errors.ugcFollowed}</span>}
-            </div>
-
-            <div className="form-group">
-              <label className="label">Number of UG programmes aligned to UGC CCFUGP</label>
-              <input
-                type="number"
-                className="input"
-                value={formData.ugProgramsNumber}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => updateFormData('ugProgramsNumber', e.target.value)}
-                min="0"
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="label">Percentage of UG programmes aligned to UGC CCFUGP</label>
-              <input
-                type="number"
-                className="input"
-                value={formData.ugProgramsPercentage}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => updateFormData('ugProgramsPercentage', e.target.value)}
-                min="0"
-                max="100"
-                step="0.01"
-              />
-            </div>
-
-            {/* Regulating Councils Section */}
-            <h3 className="section-title">Regulating Councils Information</h3>
-
-            <div className="form-group">
-              <label className="label">Number of UG programmes aligned to Regulating Councils</label>
-              <input
-                type="number"
-                className="input"
-                value={formData.regulatingCouncilsNumber}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => updateFormData('regulatingCouncilsNumber', e.target.value)}
-                min="0"
-              />
-            </div>
-
+        {Number(formData.regulatingCouncilsNumber) > 0 && (
+          <>
             <div className="form-group">
               <label className="label">Percentage aligned to Regulating Councils</label>
               <input
                 type="number"
                 className="input"
                 value={formData.regulatingCouncilsPercentage}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => updateFormData('regulatingCouncilsPercentage', e.target.value)}
+                onChange={(e) => updateFormData('regulatingCouncilsPercentage', e.target.value)}
                 min="0"
                 max="100"
                 step="0.01"
@@ -355,60 +433,81 @@ const CollegeProgramForm: React.FC = () => {
               <textarea
                 className="textarea"
                 value={formData.regulatingCouncilsNames}
-                onChange={(e: ChangeEvent<HTMLTextAreaElement>) => updateFormData('regulatingCouncilsNames', e.target.value)}
-                placeholder="Enter council names separated by commas (e.g., AICTE, UGC, NCTE)"
+                onChange={(e) => updateFormData('regulatingCouncilsNames', e.target.value)}
                 rows={3}
               />
             </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
 
-            {/* CCFUGP Programs Section */}
-            <h3 className="section-title">CCFUGP Programs (neither CCFUGP nor Council)</h3>
+// Non-Aligned Programs
+case 3:
+  return (
+    <div className="form-section">
+      <h2 className="section-title">{section.title}</h2>
+      <p className="section-description">{section.description}</p>
 
-            <div className="form-group">
-              <label className="label">Number of programmes neither CCFUGP nor Council</label>
-              <input
-                type="number"
-                className="input"
-                value={formData.ccfugpProgramsNumber}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => updateFormData('ccfugpProgramsNumber', e.target.value)}
-                min="0"
-              />
-            </div>
+      <div className="form-grid">
+        <div className="form-group">
+          <label className="label">Number of programmes neither CCFUGP nor Council</label>
+          <input
+            type="number"
+            className="input"
+            value={formData.ccfugpProgramsNumber}
+            onChange={(e) => updateFormData('ccfugpProgramsNumber', e.target.value)}
+            min="0"
+          />
+        </div>
 
-            <div className="form-group">
-              <label className="label">Percentage of programmes neither CCFUGP nor Council</label>
-              <input
-                type="number"
-                className="input"
-                value={formData.ccfugpProgramsPercentage}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => updateFormData('ccfugpProgramsPercentage', e.target.value)}
-                min="0"
-                max="100"
-                step="0.01"
-              />
-            </div>
+        {Number(formData.ccfugpProgramsNumber) > 0 && (
+          <div className="form-group">
+            <label className="label">Percentage of programmes neither CCFUGP nor Council</label>
+            <input
+              type="number"
+              className="input"
+              value={formData.ccfugpProgramsPercentage}
+              onChange={(e) => updateFormData('ccfugpProgramsPercentage', e.target.value)}
+              min="0"
+              max="100"
+              step="0.01"
+            />
+          </div>
+        )}
+      </div>
+    </div>
+  );
 
-            {/* Bachelor Degree Programs Section */}
-            <h3 className="section-title">3-year Bachelor Degree Programs</h3>
+// Bachelor Degree Programs
+case 4:
+  return (
+    <div className="form-section">
+      <h2 className="section-title">{section.title}</h2>
+      <p className="section-description">{section.description}</p>
 
-            <div className="form-group">
-              <label className="label">Number of 3-year bachelor Degree programmes (non-B.VOC)</label>
-              <input
-                type="number"
-                className="input"
-                value={formData.bachelorDegreeNumber}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => updateFormData('bachelorDegreeNumber', e.target.value)}
-                min="0"
-              />
-            </div>
+      <div className="form-grid">
+        <div className="form-group">
+          <label className="label">Number of 3-year bachelor Degree programmes (non-B.VOC)</label>
+          <input
+            type="number"
+            className="input"
+            value={formData.bachelorDegreeNumber}
+            onChange={(e) => updateFormData('bachelorDegreeNumber', e.target.value)}
+            min="0"
+          />
+        </div>
 
+        {Number(formData.bachelorDegreeNumber) > 0 && (
+          <>
             <div className="form-group">
               <label className="label">Percentage of 3-year bachelor Degree programmes (non-B.VOC)</label>
               <input
                 type="number"
                 className="input"
                 value={formData.bachelorDegreePercentage}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => updateFormData('bachelorDegreePercentage', e.target.value)}
+                onChange={(e) => updateFormData('bachelorDegreePercentage', e.target.value)}
                 min="0"
                 max="100"
                 step="0.01"
@@ -420,33 +519,44 @@ const CollegeProgramForm: React.FC = () => {
               <textarea
                 className="textarea"
                 value={formData.bachelorDegreeList}
-                onChange={(e: ChangeEvent<HTMLTextAreaElement>) => updateFormData('bachelorDegreeList', e.target.value)}
-                placeholder="Enter program names separated by commas (e.g., B.A., B.Sc., B.Com)"
+                onChange={(e) => updateFormData('bachelorDegreeList', e.target.value)}
                 rows={3}
               />
             </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
 
-            {/* B.VOC Programs Section */}
-            <h3 className="section-title">B.VOC Programs</h3>
+// B.VOC Programs
+case 5:
+  return (
+    <div className="form-section">
+      <h2 className="section-title">{section.title}</h2>
+      <p className="section-description">{section.description}</p>
 
-            <div className="form-group">
-              <label className="label">Number of B.VOC programmes</label>
-              <input
-                type="number"
-                className="input"
-                value={formData.bVocNumber}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => updateFormData('bVocNumber', e.target.value)}
-                min="0"
-              />
-            </div>
+      <div className="form-grid">
+        <div className="form-group">
+          <label className="label">Number of B.VOC programmes</label>
+          <input
+            type="number"
+            className="input"
+            value={formData.bVocNumber}
+            onChange={(e) => updateFormData('bVocNumber', e.target.value)}
+            min="0"
+          />
+        </div>
 
+        {Number(formData.bVocNumber) > 0 && (
+          <>
             <div className="form-group">
               <label className="label">Percentage of B.VOC programmes</label>
               <input
                 type="number"
                 className="input"
                 value={formData.bVocPercentage}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => updateFormData('bVocPercentage', e.target.value)}
+                onChange={(e) => updateFormData('bVocPercentage', e.target.value)}
                 min="0"
                 max="100"
                 step="0.01"
@@ -458,27 +568,175 @@ const CollegeProgramForm: React.FC = () => {
               <textarea
                 className="textarea"
                 value={formData.bVocList}
-                onChange={(e: ChangeEvent<HTMLTextAreaElement>) => updateFormData('bVocList', e.target.value)}
-                placeholder="Enter B.VOC program names separated by commas"
+                onChange={(e) => updateFormData('bVocList', e.target.value)}
                 rows={3}
               />
             </div>
-          </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
 
-          <div className="button-container">
-            <button type="button" className="btn btn-secondary" onClick={resetForm}>
-              Reset Form
-            </button>
-            <button type="submit" className="btn btn-primary">
-              Submit Registration
-            </button>
-          </div>
+      case 6: // Review & Submit
+        return (
+          <div className="form-section">
+            <h2 className="section-title">{section.title}</h2>
+            <p className="section-description">{section.description}</p>
+            
+            {submitted ? (
+              <div className="success-message">
+                ✅ Form submitted successfully! Thank you for your submission.
+                <br />
+                <small>Form will reset automatically in 5 seconds...</small>
+              </div>
+            ) : (
+              <div className="summary-grid">
+                <div className="summary-card">
+                  <h4>Institution Details</h4>
+                  <p><strong>Institution:</strong> {formData.college || 'Not selected'}</p>
+                  <p><strong>Total Programs:</strong> {formData.totalPrograms || 'N/A'}</p>
+                </div>
 
-          <div className="form-footer">
-            <p>© 2024 University Grants Commission, Government of India. All rights reserved.</p>
-            <p>For technical support, contact: support@ugc.ac.in</p>
+                <div className="summary-card">
+                  <h4>UGC CCFUGP</h4>
+                  <p><strong>UGC Followed:</strong> {formData.ugcFollowed || 'Not specified'}</p>
+                  <p><strong>UG Programs:</strong> {formData.ugProgramsNumber || 0} ({formData.ugProgramsPercentage || 0}%)</p>
+                </div>
+
+                <div className="summary-card">
+                  <h4>Regulating Councils</h4>
+                  <p><strong>Programs:</strong> {formData.regulatingCouncilsNumber || 0} ({formData.regulatingCouncilsPercentage || 0}%)</p>
+                  <p><strong>Councils:</strong> {formData.regulatingCouncilsNames || 'Not specified'}</p>
+                </div>
+
+                <div className="summary-card">
+                  <h4>Non-Aligned Programs</h4>
+                  <p><strong>Programs:</strong> {formData.ccfugpProgramsNumber || 0} ({formData.ccfugpProgramsPercentage || 0}%)</p>
+                </div>
+
+                <div className="summary-card">
+                  <h4>Bachelor Degree Programs</h4>
+                  <p><strong>Programs:</strong> {formData.bachelorDegreeNumber || 0} ({formData.bachelorDegreePercentage || 0}%)</p>
+                  <p><strong>List:</strong> {formData.bachelorDegreeList || 'Not specified'}</p>
+                </div>
+
+                <div className="summary-card">
+                  <h4>B.VOC Programs</h4>
+                  <p><strong>Programs:</strong> {formData.bVocNumber || 0} ({formData.bVocPercentage || 0}%)</p>
+                  <p><strong>List:</strong> {formData.bVocList || 'Not specified'}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+
+      default:
+        return <div>Section not found</div>;
+    }
+  };
+
+  const progressPercentage = ((currentSection + 1) / sections.length) * 100;
+
+  return (
+    <div className="container">
+      <div className="header">
+        <h1 className="header-title">🏛️ UGC College Program Registration System</h1>
+        <p className="header-subtitle">University Grants Commission - Government of India</p>
+      </div>
+
+      <div className="form-container">
+        {/* Progress Bar */}
+        <div className="progress-container">
+          <div className="progress-bar">
+            <div 
+              className="progress-fill" 
+              style={{ width: `${progressPercentage}%` }}
+            ></div>
+          </div>
+          
+          {/* Section Indicators */}
+          <div className="section-indicators">
+            {sections.map((section, index) => (
+              <div
+                key={section.id}
+                className={`section-indicator ${
+                  index === currentSection ? 'active' : ''
+                } ${
+                  completedSections.has(index) ? 'completed' : ''
+                }`}
+                onClick={() => handleSectionClick(index)}
+                style={{ 
+                  cursor: index <= Math.max(...Array.from(completedSections), -1) + 1 ? 'pointer' : 'not-allowed',
+                  opacity: index <= Math.max(...Array.from(completedSections), -1) + 1 ? 1 : 0.5
+                }}
+              >
+                {section.title}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Current Section */}
+        <form onSubmit={handleSubmit}>
+          {renderSection()}
+
+          {/* Navigation */}
+          <div className="navigation-container">
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handlePrevious}
+                disabled={currentSection === 0}
+              >
+                ← Previous
+              </button>
+              
+              <button
+                type="button"
+                className="btn btn-outline"
+                onClick={resetForm}
+              >
+                🔄 Reset Form
+              </button>
+            </div>
+
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '15px',
+              color: '#6c757d',
+              fontWeight: '500'
+            }}>
+              Step {currentSection + 1} of {sections.length}
+            </div>
+
+            {currentSection === sections.length - 1 ? (
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={submitted}
+                style={{ minWidth: '180px' }}
+              >
+                {submitted ? '✅ Submitted' : '📄 Submit Registration'}
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleNext}
+              >
+                Next →
+              </button>
+            )}
           </div>
         </form>
+
+        <div className="form-footer">
+          <p>© 2024 University Grants Commission, Government of India. All rights reserved.</p>
+          <p>For technical support, contact: support@ugc.ac.in</p>
+        </div>
       </div>
     </div>
   );
